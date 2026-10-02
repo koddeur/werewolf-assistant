@@ -5,9 +5,10 @@ import { pickerOptions } from '../components/pickerOptions'
 import { IdentifyPanel } from '../components/IdentifyPanel'
 import { RevealPanel } from '../components/RevealPanel'
 import { Banner, Button, Card, Hint, MainAction, Phrase, SectionTitle } from '../components/ui'
-import { getRole } from '../engine/roles'
+import { activeVariant, getRole } from '../engine/roles'
 import {
   availableActions,
+  blockedByExclusive,
   foxGroup,
   isWolf,
   nightVictims,
@@ -214,7 +215,7 @@ export function StepScreen({ step }: { step: NightStep }) {
         : { emoji: role.emoji, ...roleTexts(game.config, role), desc: role.description_courte }
   const eyesClosed = step.kind === 'role' && role.yeuxFermes
 
-  const actions =
+  const shown =
     status === 'active'
       ? availableActions(game, step).filter((a) => {
           if (!a.dependDe) return true
@@ -222,6 +223,8 @@ export function StepScreen({ step }: { step: NightStep }) {
           return Array.isArray(dep) && dep.length > 0
         })
       : []
+  const blocked = shown.filter((a) => blockedByExclusive(game.config, step.roleId, a, sel))
+  const actions = shown.filter((a) => !blocked.includes(a))
 
   const pendingReveal = actions.some((a) => {
     const t = playerById(game, Array.isArray(sel[a.id]) ? (sel[a.id] as string[])[0] : undefined)
@@ -293,18 +296,27 @@ export function StepScreen({ step }: { step: NightStep }) {
           )}
           {step.kind === 'role' && role.id === 'sorciere' && <WitchInfo />}
 
-          {actions.map((a) => (
-            <div key={a.id} className="space-y-3">
-              <SectionTitle>{a.libelle}</SectionTitle>
-              <ActionInput
-                action={a}
-                value={sel[a.id]}
-                actorIds={actorIds}
-                onChange={(v) => setSel((prev) => ({ ...prev, [a.id]: v }))}
-              />
-              <ActionResult action={a} value={sel[a.id]} />
-            </div>
-          ))}
+          {shown.map((a) =>
+            blocked.includes(a) ? (
+              <div key={a.id} className="space-y-3">
+                <SectionTitle>{a.libelle}</SectionTitle>
+                <Banner tone="info">
+                  🚫 {activeVariant(game.config, step.roleId)?.nom ?? 'Action exclusive'} : pas utilisable ce tour-ci.
+                </Banner>
+              </div>
+            ) : (
+              <div key={a.id} className="space-y-3">
+                <SectionTitle>{a.libelle}</SectionTitle>
+                <ActionInput
+                  action={a}
+                  value={sel[a.id]}
+                  actorIds={actorIds}
+                  onChange={(v) => setSel((prev) => ({ ...prev, [a.id]: v }))}
+                />
+                <ActionResult action={a} value={sel[a.id]} />
+              </div>
+            ),
+          )}
         </>
       )}
 

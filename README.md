@@ -56,9 +56,13 @@ C'est une **application web mobile (PWA)** :
 2. **Rôles** : touche les cartes pour régler les quantités. Le compteur affiche « rôles attribués / joueurs ». Les places restantes sont complétées automatiquement en Simples Villageois.
 3. **Options** :
    - **Maire** : avec ou sans. Sa voix compte double.
-   - **Mode de certains rôles**, par exemple Cupidon :
-     - *Classique* : Cupidon ne choisit les Amoureux qu'une fois ;
-     - *Nouveaux Amoureux* : quand le couple est mort, Cupidon (s'il est vivant) en désigne un nouveau.
+   - **Mode de certains rôles** :
+     - **Cupidon** :
+       - *Classique* : Cupidon ne choisit les Amoureux qu'une fois ;
+       - *Nouveaux Amoureux* : quand le couple est mort, Cupidon (s'il est vivant) en désigne un nouveau.
+     - **Sorcière** :
+       - *Deux potions la même nuit* (règle officielle) ;
+       - *Une seule potion par nuit*.
    - **Saisie des prénoms**, au choix :
 
      | Mode | Principe | Quand l'utiliser |
@@ -200,7 +204,7 @@ Les tests couvrent notamment :
 - le Maire tué la nuit ;
 - l'infection par l'Infect Père ;
 - le Renard qui perd son pouvoir, avec recalcul des voisins ;
-- les potions de la Sorcière, l'Ancien, l'Ange, l'Idiot, le Bouc émissaire, le tétanos du Chevalier, l'ours, le Grand Méchant Loup ;
+- les potions de la Sorcière et ses deux modes, l'Ancien, l'Ange, l'Idiot, le Bouc émissaire, le tétanos du Chevalier, l'ours, le Grand Méchant Loup ;
 - les deux modes de Cupidon ;
 - le tour de reconnaissance et les modes de saisie des prénoms ;
 - la victoire du village.
@@ -243,7 +247,8 @@ Champs optionnels utiles :
 | `nom_pluriel`, `phrase_reveil_pluriel`, `phrase_coucher_pluriel` | Textes utilisés quand plusieurs cartes sont en jeu. |
 | `requiertCercle` | Impose le placement en cercle (voisins). |
 | `compagnon` | Étape qui suit le rôle (Amoureux après Cupidon, charmés après le Joueur de flûte). |
-| `variantes` | Modes de règle choisis à la préparation, chacun pouvant ajouter des effets (ex. Cupidon). |
+| `variantes` | Modes de règle choisis à la préparation, chacun pouvant ajouter des effets (ex. Cupidon, Sorcière). |
+| `exclusifAvec` + `exclusifSi` (sur une action) | Rend deux actions incompatibles le même tour quand le rôle a cet effet (ex. une seule potion par nuit). |
 | `quantites.permises` | Quantités autorisées (ex. Sœurs : 2 ou 3). |
 
 Un rôle qui réutilise des **actions** (`effet`) et des **déclencheurs** (`effets`) existants ne demande aucun autre code. Une mécanique vraiment nouvelle demande d'ajouter son effet dans `engine.ts`, puis un test dans `engine.test.ts`.
@@ -259,7 +264,9 @@ Certaines règles varient selon les tables. Voici celles appliquées par l'app :
   - la victime devient loup en secret et garde son pouvoir ;
   - si la cible était protégée par le Salvateur, l'infection échoue, mais le pouvoir est consommé, pour ne rien trahir.
 - **Voyante** : elle voit la carte d'origine, donc un joueur infecté apparaît avec son rôle de village.
-- **Sorcière** : on lui montre la victime **déjà corrigée** par la protection du Salvateur. Si la victime était protégée, il n'y a rien à sauver et aucune potion n'est gaspillée.
+- **Sorcière** :
+  - on lui montre la victime **déjà corrigée** par la protection du Salvateur. Si la victime était protégée, il n'y a rien à sauver et aucune potion n'est gaspillée ;
+  - par défaut, elle peut utiliser ses deux potions la même nuit. Le mode « Une seule potion par nuit » se choisit à la préparation.
 - **Ancien** : il survit à la première attaque des loups. S'il est tué par le village (vote, Sorcière, Chasseur), les villageois perdent leurs pouvoirs.
 - **Chevalier** : s'il est dévoré, le premier loup à sa gauche meurt la nuit suivante. « À gauche » correspond au joueur suivant dans le sens des aiguilles d'une montre.
 - **Loup Blanc** : il joue les nuits paires et gagne s'il est le dernier survivant.

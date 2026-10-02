@@ -3,6 +3,7 @@ import { defaultOrder, getRole, hasConfiguredEffect, hasEffect, ROLES, VILLAGER_
 import {
   alivePlayers,
   availableActions,
+  blockedByExclusive,
   displayName,
   firstWolfToLeft,
   foxGroup,
@@ -289,9 +290,13 @@ const asIds = (v: SelectionValue): string[] => (Array.isArray(v) ? v : typeof v 
 function applyStep(s: GameState, step: NightStep, selections: Record<string, SelectionValue>) {
   const night = s.night!
   const actors = stepActors(s, step)
+  // Seules les actions déjà appliquées comptent pour l'exclusivité : la première gagne.
+  const applied: Record<string, SelectionValue> = {}
   for (const action of availableActions(s, step)) {
     const value = selections[action.id]
     if (value === undefined || value === null) continue
+    if (blockedByExclusive(s.config, step.roleId, action, applied)) continue
+    applied[action.id] = value
     const ids = asIds(value)
     const first = ids[0] ?? null
     switch (action.effet) {

@@ -483,6 +483,8 @@ export const ROLES: RoleDef[] = [
         source: 'victimes_nuit',
         optionnel: true,
         disponibleSi: 'potion_vie',
+        exclusifAvec: 'mort',
+        exclusifSi: 'une_potion_par_nuit',
       },
       {
         id: 'mort',
@@ -493,11 +495,26 @@ export const ROLES: RoleDef[] = [
         contraintes: ['vivant', 'pas_soi_meme'],
         optionnel: true,
         disponibleSi: 'potion_mort',
+        exclusifAvec: 'vie',
+        exclusifSi: 'une_potion_par_nuit',
       },
     ],
     effets: [],
     description_courte: 'Une potion de vie et une potion de mort, chacune utilisable une seule fois dans la partie.',
     quantites: { max: 1 },
+    variantes: [
+      {
+        id: 'deux_potions',
+        nom: 'Deux potions la même nuit',
+        description: 'Elle peut sauver la victime et empoisonner quelqu’un lors du même tour (règle officielle).',
+      },
+      {
+        id: 'une_potion',
+        nom: 'Une seule potion par nuit',
+        description: 'Si elle utilise une potion, elle ne peut pas utiliser l’autre lors du même tour.',
+        effets: ['une_potion_par_nuit'],
+      },
+    ],
   },
   {
     id: 'joueur_flute',

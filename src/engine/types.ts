@@ -49,6 +49,12 @@ export interface ActionDef {
   disponibleSi?: Condition
   /** L'action n'apparaît qu'une fois cette autre action renseignée. */
   dependDe?: string
+  /**
+   * Action incompatible avec une autre la même nuit quand le rôle a l'effet `exclusifSi`
+   * (ex. Sorcière : une seule potion par nuit selon la variante choisie).
+   */
+  exclusifAvec?: string
+  exclusifSi?: EffetRole
   options?: { valeur: string; libelle: string }[]
 }
 
@@ -68,6 +74,7 @@ export type EffetRole =
   | 'gagne_seul'
   | 'gagne_si_tous_charmes'
   | 'renouvelle_amoureux'
+  | 'une_potion_par_nuit'
 
 export interface CompagnonDef {
   id: 'amoureux' | 'charmes'

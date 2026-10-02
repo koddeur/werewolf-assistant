@@ -1,5 +1,5 @@
-import { findRole, getRole, hasEffect, ROLES, VILLAGER_ID } from './roles'
-import type { ActionDef, GameConfig, GameState, NightStep, Player, RoleDef, RoleId } from './types'
+import { findRole, getRole, hasConfiguredEffect, hasEffect, ROLES, VILLAGER_ID } from './roles'
+import type { ActionDef, GameConfig, GameState, NightStep, Player, RoleDef, RoleId, SelectionValue } from './types'
 
 export const normalizeName = (name: string) =>
   name
@@ -124,6 +124,22 @@ export function conditionMet(s: GameState, action: ActionDef): boolean {
 export function availableActions(s: GameState, step: NightStep): ActionDef[] {
   if (step.kind !== 'role') return []
   return getRole(step.roleId).actions.filter((a) => conditionMet(s, a))
+}
+
+/**
+ * Action bloquée parce que l'action dont elle est exclusive a déjà un joueur désigné
+ * (« Personne » ne bloque pas).
+ */
+export function blockedByExclusive(
+  config: GameConfig,
+  roleId: RoleId,
+  action: ActionDef,
+  selections: Record<string, SelectionValue | undefined>,
+): boolean {
+  if (!action.exclusifAvec || !action.exclusifSi) return false
+  if (!hasConfiguredEffect(config, roleId, action.exclusifSi)) return false
+  const other = selections[action.exclusifAvec]
+  return Array.isArray(other) && other.length > 0
 }
 
 /** Victimes des attaques de la nuit, déjà corrigées par la protection du Salvateur. */

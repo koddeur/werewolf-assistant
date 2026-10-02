@@ -3,6 +3,7 @@ import { createGame, currentStep, gameReducer } from './engine'
 import { defaultOrder, getRole } from './roles'
 import {
   bearGrowls,
+  blockedByExclusive,
   roleTexts,
   candidates,
   isWolf,
@@ -219,6 +220,36 @@ describe('Deux Chasseurs', () => {
     expect(s.alerts[0]).toMatchObject({ kind: 'hunter_shot', hunterId: id(s, 'Gaël') })
     s = gameReducer(s, { type: 'RESOLVE_ALERT', targetId: id(s, 'Alice') })
     expect(player(s, 'Alice').alive).toBe(false)
+  })
+})
+
+describe('Sorcière : variantes', () => {
+  const witchAction = (actionId: string) => getRole('sorciere').actions.find((a) => a.id === actionId)!
+
+  it('par défaut, elle peut utiliser ses deux potions la même nuit', () => {
+    const s = setup(BASE)
+    expect(blockedByExclusive(s.config, 'sorciere', witchAction('mort'), { vie: [id(s, 'Chloé')] })).toBe(false)
+  })
+
+  it('« une seule potion par nuit » : la seconde potion est bloquée et n’est pas consommée', () => {
+    let s = setup(BASE, { variantes: { sorciere: 'une_potion' } })
+    // L'écran masque la potion de mort dès qu'une victime est sauvée ; « Personne » ne bloque rien.
+    expect(blockedByExclusive(s.config, 'sorciere', witchAction('mort'), { vie: [id(s, 'Chloé')] })).toBe(true)
+    expect(blockedByExclusive(s.config, 'sorciere', witchAction('mort'), { vie: null })).toBe(false)
+    // Même si les deux arrivent au moteur, seule la première est appliquée.
+    s = playNight(s, {
+      loup_garou: { victime: [id(s, 'Chloé')] },
+      sorciere: { vie: [id(s, 'Chloé')], mort: [id(s, 'Alice')] },
+    })
+    expect(s.morning!.deaths).toEqual([])
+    expect(player(s, 'Alice').alive).toBe(true)
+    expect(s.powers).toMatchObject({ witchLife: false, witchDeath: true })
+  })
+
+  it('« une seule potion par nuit » : la potion de mort seule reste utilisable', () => {
+    let s = setup(BASE, { variantes: { sorciere: 'une_potion' } })
+    s = playNight(s, { sorciere: { vie: null, mort: [id(s, 'Alice')] } })
+    expect(s.morning!.deaths).toEqual([id(s, 'Alice')])
   })
 })
 
