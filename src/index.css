@@ -1,0 +1,65 @@
+@import "tailwindcss";
+
+@theme {
+  --color-night-950: #070a12;
+  --color-night-900: #0c1120;
+  --color-night-800: #141b30;
+  --color-night-700: #1e2742;
+  --color-night-600: #2c3759;
+  --color-night-400: #6b7699;
+  --color-moon: #f3d27a;
+  --color-moon-dim: #c9a64f;
+  --color-blood: #ef4444;
+  --color-ember: #f59e0b;
+  --color-forest: #34d399;
+  --color-mist: #e7e9f2;
+  --font-tale: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+  background: var(--color-night-950);
+  color: var(--color-mist);
+}
+
+body {
+  margin: 0;
+  overflow-x: hidden;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 18px;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+button {
+  touch-action: manipulation;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+
+.animate-rise {
+  animation: rise 0.25s ease-out both;
+}
+
+@keyframes pulse-alert {
+  0%, 100% { box-shadow: 0 0 0 0 rgb(239 68 68 / 0.45); }
+  50% { box-shadow: 0 0 0 14px rgb(239 68 68 / 0); }
+}
+
+.animate-alert {
+  animation: pulse-alert 1.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise, .animate-alert { animation: none; }
+}
