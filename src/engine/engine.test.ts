@@ -3,6 +3,7 @@ import { createGame, currentStep, gameReducer } from './engine'
 import { defaultOrder, getRole } from './roles'
 import {
   bearGrowls,
+  roleTexts,
   candidates,
   isWolf,
   nightVictims,
@@ -15,7 +16,10 @@ import type { GameAction, GameState, RoleId, SelectionValue } from './types'
 type Selections = Record<string, SelectionValue>
 
 /** Partie en placement en cercle, chaque joueur ayant déjà son rôle. */
-function setup(seating: [name: string, role: RoleId][], opts: { mayor?: boolean } = {}): GameState {
+function setup(
+  seating: [name: string, role: RoleId][],
+  opts: { mayor?: boolean; variantes?: Record<RoleId, string> } = {},
+): GameState {
   const roleCounts: Record<RoleId, number> = {}
   const names: Record<RoleId, string[]> = {}
   for (const [name, role] of seating) {
@@ -23,7 +27,14 @@ function setup(seating: [name: string, role: RoleId][], opts: { mayor?: boolean 
     ;(names[role] ??= []).push(name)
   }
   const s = createGame(
-    { playerCount: seating.length, roleCounts, nameMode: 'cercle', mayorEnabled: opts.mayor ?? true, order: defaultOrder() },
+    {
+      playerCount: seating.length,
+      roleCounts,
+      nameMode: 'cercle',
+      mayorEnabled: opts.mayor ?? true,
+      order: defaultOrder(),
+      variantes: opts.variantes,
+    },
     seating.map(([name]) => name),
     42,
   )
@@ -137,6 +148,77 @@ describe('Chasseur et Amoureux', () => {
     expect(player(s, 'Hugo').alive).toBe(false)
     expect(player(s, 'Hugo').death!.cause).toBe('chagrin')
     expect(s.alerts.map((a) => a.kind)).toEqual(['death', 'death'])
+  })
+})
+
+describe('Cupidon', () => {
+  const SEATS: [string, RoleId][] = [...BASE.slice(0, 5), ['Farid', 'cupidon'], ['Gaël', 'voyante'], ['Hugo', 'villageois']]
+
+  /** Nuit 1 : Cupidon unit Chloé et Hugo, que les loups dévorent (Hugo meurt de chagrin). */
+  function coupleDies(variante: string) {
+    let s = setup(SEATS, { variantes: { cupidon: variante } })
+    s = nightAndMorning(s, {
+      cupidon: { amoureux: [id(s, 'Chloé'), id(s, 'Hugo')] },
+      loup_garou: { victime: [id(s, 'Chloé')] },
+    })
+    expect(player(s, 'Hugo').alive).toBe(false)
+    return s
+  }
+
+  it('mode classique : Cupidon n’est plus appelé après la première nuit', () => {
+    let s = coupleDies('classique')
+    expect(s.alerts.map((a) => a.kind)).toEqual(['death'])
+    s = quietDay(s)
+    expect(s.night!.steps.map((st) => st.roleId)).not.toContain('cupidon')
+  })
+
+  it('mode Nouveaux Amoureux : Cupidon vivant désigne un nouveau couple', () => {
+    let s = coupleDies('renouvelable')
+    expect(s.alerts.map((a) => a.kind)).toEqual(['death', 'info'])
+    s = quietDay(s)
+    expect(s.night!.steps.map((st) => st.key).slice(0, 2)).toEqual(['cupidon', 'cupidon:amoureux'])
+    s = nightAndMorning(s, {
+      cupidon: { amoureux: [id(s, 'Bob'), id(s, 'Farid')] },
+      loup_garou: { victime: [id(s, 'Bob')] },
+    })
+    expect(s.lovers).toEqual([id(s, 'Bob'), id(s, 'Farid')])
+    // Le chagrin s'applique au nouveau couple (ici Cupidon lui-même).
+    expect(player(s, 'Farid').death?.cause).toBe('chagrin')
+  })
+
+  it('mode Nouveaux Amoureux : pas de nouveau couple si Cupidon est mort ou si un Amoureux vit encore', () => {
+    let s = setup(SEATS, { variantes: { cupidon: 'renouvelable' } })
+    s = nightAndMorning(s, {
+      cupidon: { amoureux: [id(s, 'Chloé'), id(s, 'Hugo')] },
+      loup_garou: { victime: [id(s, 'Farid')] },
+    })
+    s = quietDay(s)
+    expect(s.night!.steps.map((st) => st.roleId)).not.toContain('cupidon')
+  })
+})
+
+describe('Deux Chasseurs', () => {
+  const SEATS: [string, RoleId][] = [...BASE.slice(0, 5), ['Farid', 'chasseur'], ['Gaël', 'chasseur'], ['Hugo', 'cupidon']]
+
+  it('sont appelés en tout premier, yeux fermés, avec les phrases au pluriel', () => {
+    const s = setup(SEATS)
+    expect(s.night!.steps[0].roleId).toBe('chasseur')
+    const hunter = getRole('chasseur')
+    expect(hunter.yeuxFermes).toBe(true)
+    expect(roleTexts(s.config, hunter).reveil).toBe(hunter.phrase_reveil_pluriel)
+    expect(stepActors(s, s.night!.steps[0]).map((p) => p.name)).toEqual(['Farid', 'Gaël'])
+  })
+
+  it('chaque Chasseur tire à sa mort, y compris sur l’autre Chasseur', () => {
+    let s = setup(SEATS)
+    s = nightAndMorning(s, { loup_garou: { victime: [id(s, 'Farid')] } })
+    expect(s.alerts[0]).toMatchObject({ kind: 'hunter_shot', hunterId: id(s, 'Farid') })
+    s = gameReducer(s, { type: 'RESOLVE_ALERT', targetId: id(s, 'Gaël') })
+    expect(s.alerts.map((a) => a.kind)).toEqual(['death', 'hunter_shot'])
+    s = gameReducer(s, { type: 'RESOLVE_ALERT' })
+    expect(s.alerts[0]).toMatchObject({ kind: 'hunter_shot', hunterId: id(s, 'Gaël') })
+    s = gameReducer(s, { type: 'RESOLVE_ALERT', targetId: id(s, 'Alice') })
+    expect(player(s, 'Alice').alive).toBe(false)
   })
 })
 
@@ -318,29 +400,72 @@ describe('Autres règles', () => {
     expect(s.winner).toBe('village')
   })
 
-  it('mode progressif : les prénoms sont saisis pendant la nuit 1', () => {
+  it('mode progressif : tour de reconnaissance, la Voyante joue une fois tout le monde identifié', () => {
     let s = createGame(
       { playerCount: 4, roleCounts: { loup_garou: 1, voyante: 1 }, nameMode: 'progressif', mayorEnabled: false, order: defaultOrder() },
       [],
       1,
     )
     s = gameReducer(s, { type: 'START_NIGHT_INTRO' })
+    // 1. La Voyante se montre, sans agir.
+    expect(currentStep(s)!.kind).toBe('reconnaissance')
     expect(stepStatus(s, currentStep(s)!)).toBe('identify')
     s = gameReducer(s, { type: 'IDENTIFY', names: { voyante: ['Léa'] } })
-    s = gameReducer(s, { type: 'ADD_PLAYER', name: 'Kevin' })
-    s = gameReducer(s, { type: 'REVEAL_ROLE', playerId: id(s, 'Kevin'), roleId: 'loup_garou' })
-    s = gameReducer(s, { type: 'COMPLETE_STEP', selections: { cible: [id(s, 'Kevin')] } })
-    expect(stepStatus(s, currentStep(s)!)).toBe('active') // la meute est déjà identifiée
     s = gameReducer(s, { type: 'COMPLETE_STEP', selections: {} })
+    // 2. Les loups se montrent et jouent.
+    s = gameReducer(s, { type: 'IDENTIFY', names: { loup_garou: ['Kevin'] } })
+    s = gameReducer(s, { type: 'ADD_PLAYER', name: 'Max' })
+    s = gameReducer(s, { type: 'COMPLETE_STEP', selections: { victime: [id(s, 'Max')] } })
+    // 3. Prénoms des joueurs restants (Max est déjà nommé).
     expect(currentStep(s)!.kind).toBe('villageois')
     s = gameReducer(s, { type: 'IDENTIFY', names: { villageois: ['Max', 'Nina'] } })
     s = gameReducer(s, { type: 'COMPLETE_STEP', selections: {} })
+    // 4. La Voyante agit : tous les rôles sont connus.
+    expect(currentStep(s)).toMatchObject({ kind: 'role', roleId: 'voyante' })
+    expect(stepStatus(s, currentStep(s)!)).toBe('active')
+    expect(s.players.every((p) => p.roleId)).toBe(true)
+    s = gameReducer(s, { type: 'COMPLETE_STEP', selections: { cible: [id(s, 'Nina')] } })
     expect(s.phase).toBe('matin')
+    expect(s.morning!.deaths).toEqual([id(s, 'Max')])
     expect(s.players.map((p) => `${p.name}:${p.roleId}`)).toEqual([
       'Léa:voyante',
       'Kevin:loup_garou',
       'Max:villageois',
       'Nina:villageois',
     ])
+  })
+
+  it('mode liste : tous les prénoms sont saisis avant la partie, sans places', () => {
+    let s = createGame(
+      { playerCount: 3, roleCounts: { loup_garou: 1 }, nameMode: 'liste', mayorEnabled: false, order: defaultOrder() },
+      ['Léa', 'Kevin', 'Max'],
+      1,
+    )
+    expect(s.players.map((p) => [p.name, p.roleId, p.seat])).toEqual([
+      ['Léa', null, null],
+      ['Kevin', null, null],
+      ['Max', null, null],
+    ])
+    // Attribuer un rôle = choisir un prénom existant : aucun joueur n'est créé.
+    s = gameReducer(s, { type: 'IDENTIFY', names: { loup_garou: ['kevin'] } })
+    expect(s.players).toHaveLength(3)
+    expect(player(s, 'Kevin').roleId).toBe('loup_garou')
+  })
+
+  it('les rôles qui doivent connaître les autres jouent en dernier la nuit 1, puis à leur place habituelle', () => {
+    let s = setup([...BASE.slice(0, 6), ['Gaël', 'voyante'], ['Hugo', 'renard']])
+    const keys = (st: GameState) => st.night!.steps.map((x) => x.key)
+    expect(keys(s)).toEqual([
+      'renard:reconnaissance',
+      'salvateur',
+      'voyante:reconnaissance',
+      'loup_garou',
+      'sorciere',
+      'villageois',
+      'renard',
+      'voyante',
+    ])
+    s = quietDay(nightAndMorning(s))
+    expect(keys(s)).toEqual(['renard', 'salvateur', 'voyante', 'loup_garou', 'sorciere'])
   })
 })

@@ -29,7 +29,9 @@ export function NightIntro() {
       <Phrase>{narrate('tombee_nuit', game.seed, n)}</Phrase>
       {n === 1 && (
         <Hint>
-          Cette nuit, chaque rôle se réveille une première fois : l’app te demandera les prénoms au fur et à mesure.
+          Première nuit = tour de reconnaissance <i>et</i> vrai tour de jeu. Chaque rôle se montre et l’app te demande les
+          prénoms au fur et à mesure. Les rôles qui ont besoin de connaître les rôles des autres (Voyante, Renard) jouent en
+          dernier, une fois tout le monde identifié.
         </Hint>
       )}
       <Card>
@@ -38,7 +40,11 @@ export function NightIntro() {
           {game.night!.steps.map((st) => {
             const role = getRole(st.roleId)
             const c = st.kind === 'amoureux' || st.kind === 'charmes' ? role.compagnon : undefined
-            return <li key={st.key}>{st.kind === 'villageois' ? '🧑‍🌾 Joueurs restants' : `${(c ?? role).emoji} ${(c ?? role).nom}`}</li>
+            const label =
+              st.kind === 'villageois'
+                ? '🧑‍🌾 Joueurs restants'
+                : `${(c ?? role).emoji} ${(c ?? role).nom}${st.kind === 'reconnaissance' ? ' (se montre)' : role.yeuxFermes && !c ? ' (yeux fermés)' : ''}`
+            return <li key={st.key}>{label}</li>
           })}
         </ol>
       </Card>

@@ -67,6 +67,7 @@ export type EffetRole =
   | 'actif_tant_qu_aucun_loup_mort'
   | 'gagne_seul'
   | 'gagne_si_tous_charmes'
+  | 'renouvelle_amoureux'
 
 export interface CompagnonDef {
   id: 'amoureux' | 'charmes'
@@ -77,9 +78,24 @@ export interface CompagnonDef {
   description_courte: string
 }
 
+/** Variante de règle d'un rôle, choisie à la préparation. La première est celle par défaut. */
+export interface VarianteDef {
+  id: string
+  nom: string
+  description: string
+  /** Effets ajoutés au rôle quand cette variante est choisie. */
+  effets?: EffetRole[]
+}
+
 export interface RoleDef {
   id: RoleId
   nom: string
+  /** Utilisés quand plusieurs cartes de ce rôle sont en jeu. */
+  nom_pluriel?: string
+  phrase_reveil_pluriel?: string
+  phrase_coucher_pluriel?: string
+  /** Appelé sans ouvrir les yeux : il lève la main pour que le narrateur le repère. */
+  yeuxFermes?: boolean
   emoji: string
   camp: Camp
   /** Compte comme loup pour la meute, le Renard, l'ours et la victoire. */
@@ -99,9 +115,17 @@ export interface RoleDef {
   description_courte: string
   /** Quantités autorisées dans la préparation. */
   quantites: { max: number; permises?: number[] }
+  /**
+   * L'action dépend des rôles des autres joueurs (ex. Voyante) : la nuit 1, le rôle
+   * se montre pendant la reconnaissance et n'agit qu'une fois tout le monde identifié.
+   */
+  apresReconnaissance?: boolean
+  /** Phrase de la nuit 1 pour un rôle qui ne fait que se montrer. */
+  phrase_reconnaissance?: string
   /** Nécessite le placement en cercle (voisins). */
   requiertCercle?: boolean
   compagnon?: CompagnonDef
+  variantes?: VarianteDef[]
 }
 
 export type DeathCause =
@@ -129,7 +153,8 @@ export interface Player {
   death?: { turn: number; phase: Phase; cause: DeathCause }
 }
 
-export type NameMode = 'progressif' | 'cercle'
+/** progressif : prénoms saisis pendant la nuit 1 · liste : saisis avant la partie · cercle : avant la partie, dans l'ordre des places. */
+export type NameMode = 'progressif' | 'liste' | 'cercle'
 
 export interface GameConfig {
   playerCount: number
@@ -139,9 +164,11 @@ export interface GameConfig {
   mayorEnabled: boolean
   /** Ordre d'appel personnalisé (ids de rôles). */
   order: RoleId[]
+  /** Variante choisie par rôle (absente = variante par défaut). */
+  variantes?: Record<RoleId, string>
 }
 
-export type StepKind = 'role' | 'amoureux' | 'charmes' | 'villageois'
+export type StepKind = 'role' | 'reconnaissance' | 'amoureux' | 'charmes' | 'villageois'
 
 export interface NightStep {
   key: string

@@ -8,16 +8,17 @@ import { useGame } from '../store/GameContext'
 import { rememberNames, suggestNames } from '../store/knownNames'
 import { OrderEditor } from './Sheets'
 
-const DRAFT_KEY = 'werewolf-assistant:setup'
+const DRAFT_KEY = 'werewolf-assistant:setup:v2'
 
 interface Draft {
-  page: 'roles' | 'options' | 'cercle'
+  page: 'roles' | 'options' | 'noms'
   playerCount: number
   roleCounts: Record<RoleId, number>
   nameMode: NameMode
   mayorEnabled: boolean
   names: string[]
   order: RoleId[]
+  variantes: Record<RoleId, string>
 }
 
 const INITIAL: Draft = {
@@ -28,12 +29,14 @@ const INITIAL: Draft = {
   mayorEnabled: true,
   names: [],
   order: defaultOrder(),
+  variantes: {},
 }
 
 function loadDraft(): Draft {
   try {
     const d = JSON.parse(localStorage.getItem(DRAFT_KEY) ?? 'null')
-    return d ? { ...INITIAL, ...d } : INITIAL
+    if (!d) return INITIAL
+    return { ...INITIAL, ...d, page: ['roles', 'options', 'noms'].includes(d.page) ? d.page : 'options' }
   } catch {
     return INITIAL
   }
@@ -79,7 +82,7 @@ function RoleCard({ role, count, onChange }: { role: RoleDef; count: number; onC
   )
 }
 
-function CircleNames({ draft, update }: { draft: Draft; update: (d: Partial<Draft>) => void }) {
+function PlayerNames({ draft, update, seated }: { draft: Draft; update: (d: Partial<Draft>) => void; seated: boolean }) {
   const [value, setValue] = useState('')
   const taken = new Set(draft.names.map(normalizeName))
   const duplicate = taken.has(normalizeName(value))
@@ -98,8 +101,9 @@ function CircleNames({ draft, update }: { draft: Draft; update: (d: Partial<Draf
   return (
     <div className="space-y-3">
       <Hint>
-        Saisis les prénoms dans l’ordre où les joueurs sont assis, en tournant dans le sens des aiguilles d’une montre. Le dernier
-        est voisin du premier.
+        {seated
+          ? 'Saisis les prénoms dans l’ordre où les joueurs sont assis, en tournant dans le sens des aiguilles d’une montre. Le dernier est voisin du premier.'
+          : 'Saisis les prénoms de tous les joueurs, dans n’importe quel ordre. Pendant la première nuit, tu n’auras plus qu’à toucher le prénom de chaque rôle.'}
       </Hint>
       <ol className="space-y-2">
         {draft.names.map((name, i) => (
@@ -107,12 +111,16 @@ function CircleNames({ draft, update }: { draft: Draft; update: (d: Partial<Draf
             <span className="flex-1 text-lg">
               <span className="text-night-400">{i + 1}.</span> {name}
             </span>
-            <Button variant="ghost" className="w-12 px-0" disabled={i === 0} onClick={() => move(i, -1)} aria-label="Monter">
-              ↑
-            </Button>
-            <Button variant="ghost" className="w-12 px-0" disabled={i === draft.names.length - 1} onClick={() => move(i, 1)} aria-label="Descendre">
-              ↓
-            </Button>
+            {seated && (
+              <>
+                <Button variant="ghost" className="w-12 px-0" disabled={i === 0} onClick={() => move(i, -1)} aria-label="Monter">
+                  ↑
+                </Button>
+                <Button variant="ghost" className="w-12 px-0" disabled={i === draft.names.length - 1} onClick={() => move(i, 1)} aria-label="Descendre">
+                  ↓
+                </Button>
+              </>
+            )}
             <Button variant="ghost" className="w-12 px-0" onClick={() => update({ names: draft.names.filter((_, j) => j !== i) })} aria-label="Supprimer">
               ✕
             </Button>
@@ -146,7 +154,7 @@ function CircleNames({ draft, update }: { draft: Draft; update: (d: Partial<Draf
         </>
       )}
       <p className="text-center text-night-400">
-        {draft.names.length} / {draft.playerCount} joueurs placés
+        {draft.names.length} / {draft.playerCount} joueurs {seated ? 'placés' : 'saisis'}
       </p>
     </div>
   )
@@ -180,7 +188,7 @@ export function SetupScreen() {
         : null
 
   const launch = () => {
-    const names = nameMode === 'cercle' ? draft.names : []
+    const names = nameMode === 'progressif' ? [] : draft.names
     const game = createGame(
       {
         playerCount: draft.playerCount,
@@ -188,6 +196,7 @@ export function SetupScreen() {
         nameMode,
         mayorEnabled: draft.mayorEnabled,
         order: draft.order,
+        variantes: draft.variantes,
       },
       names,
     )
@@ -240,7 +249,7 @@ export function SetupScreen() {
     const inGame = new Set(selected.map((r) => r.id))
     const hasPackStep = draft.order.find((id) => getRole(id).meute)
     if (hasPackStep && hasWolf) inGame.add(hasPackStep)
-    const nextPage = nameMode === 'cercle' ? 'cercle' : null
+    const nextPage = nameMode === 'progressif' ? null : 'noms'
     return (
       <div className="space-y-5 animate-rise">
         <Button variant="ghost" onClick={() => update({ page: 'roles' })}>
@@ -258,6 +267,32 @@ export function SetupScreen() {
           </Button>
         </div>
 
+        {selected
+          .filter((r) => r.variantes?.length)
+          .map((r) => {
+            const current = draft.variantes[r.id] ?? r.variantes![0].id
+            return (
+              <div key={r.id} className="space-y-2">
+                <SectionTitle>
+                  {r.emoji} Mode {r.nom}
+                </SectionTitle>
+                <div className="grid gap-2">
+                  {r.variantes!.map((v) => (
+                    <Button
+                      key={v.id}
+                      variant={current === v.id ? 'primary' : 'ghost'}
+                      className="text-left"
+                      onClick={() => update({ variantes: { ...draft.variantes, [r.id]: v.id } })}
+                    >
+                      {v.nom}
+                      <span className="block text-sm font-normal">{v.description}</span>
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )
+          })}
+
         <SectionTitle>Saisie des prénoms</SectionTitle>
         {circleRoles.length > 0 ? (
           <Banner tone="warning">
@@ -270,11 +305,17 @@ export function SetupScreen() {
               ✍️ Progressif (recommandé)
               <span className="block text-sm font-normal">Tu saisis les prénoms pendant la première nuit, rôle par rôle.</span>
             </Button>
+            <Button variant={nameMode === 'liste' ? 'primary' : 'ghost'} className="text-left" onClick={() => update({ nameMode: 'liste' })}>
+              📋 Liste des joueurs
+              <span className="block text-sm font-normal">
+                Tu saisis tous les prénoms maintenant. La nuit 1, tu n’as plus qu’à les sélectionner pour attribuer les rôles.
+              </span>
+            </Button>
             <Button variant={nameMode === 'cercle' ? 'primary' : 'ghost'} className="text-left" onClick={() => update({ nameMode: 'cercle' })}>
               🪑 Placement en cercle
-              <span className="block text-sm font-normal">Tu saisis tout le monde maintenant, dans l’ordre des places.</span>
+              <span className="block text-sm font-normal">Comme la liste, mais dans l’ordre des places (utile pour les voisins).</span>
             </Button>
-            {selected.some((r) => r.effets.includes('tetanos')) && nameMode === 'progressif' && (
+            {selected.some((r) => r.effets.includes('tetanos')) && nameMode !== 'cercle' && (
               <Hint>Avec le Chevalier, le cercle permet à l’app de trouver seule le loup à sa gauche.</Hint>
             )}
           </div>
@@ -288,7 +329,9 @@ export function SetupScreen() {
         </Button>
 
         {nextPage ? (
-          <MainAction onClick={() => update({ page: nextPage, nameMode })}>Placer les joueurs →</MainAction>
+          <MainAction onClick={() => update({ page: nextPage, nameMode })}>
+            {nameMode === 'cercle' ? 'Placer les joueurs →' : 'Saisir les joueurs →'}
+          </MainAction>
         ) : (
           <MainAction onClick={launch}>Commencer la partie 🌙</MainAction>
         )}
@@ -301,8 +344,8 @@ export function SetupScreen() {
       <Button variant="ghost" onClick={() => update({ page: 'options' })}>
         ← Options
       </Button>
-      <h1 className="font-tale text-3xl font-bold text-moon">Placement en cercle</h1>
-      <CircleNames draft={draft} update={update} />
+      <h1 className="font-tale text-3xl font-bold text-moon">{nameMode === 'cercle' ? 'Placement en cercle' : 'Liste des joueurs'}</h1>
+      <PlayerNames draft={draft} update={update} seated={nameMode === 'cercle'} />
       <MainAction disabled={draft.names.length !== draft.playerCount} onClick={launch}>
         Commencer la partie 🌙
       </MainAction>

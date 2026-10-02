@@ -45,6 +45,16 @@ export function fullRoleCounts(config: GameConfig): Record<RoleId, number> {
   return counts
 }
 
+/** Nom et phrases du rôle, au pluriel si plusieurs cartes sont en jeu. */
+export function roleTexts(config: GameConfig, role: RoleDef) {
+  const plural = (fullRoleCounts(config)[role.id] ?? 0) > 1
+  return {
+    nom: (plural && role.nom_pluriel) || role.nom,
+    reveil: (plural && role.phrase_reveil_pluriel) || role.phrase_reveil,
+    coucher: (plural && role.phrase_coucher_pluriel) || role.phrase_coucher,
+  }
+}
+
 export function rolesInGame(config: GameConfig): RoleDef[] {
   const counts = fullRoleCounts(config)
   return ROLES.filter((r) => (counts[r.id] ?? 0) > 0)
@@ -66,7 +76,7 @@ export const unassignedPlayers = (s: GameState) => s.players.filter((p) => p.rol
 export function rolesToIdentify(s: GameState, step: NightStep): RoleId[] {
   const remaining = remainingSlots(s)
   if (step.kind === 'villageois') return Object.keys(remaining)
-  if (step.kind !== 'role') return []
+  if (step.kind !== 'role' && step.kind !== 'reconnaissance') return []
   const role = getRole(step.roleId)
   if (role.meute) {
     return ROLES.filter((r) => r.reveilAvecLoups && remaining[r.id]).map((r) => r.id)
@@ -87,7 +97,7 @@ export type StepStatus = 'identify' | 'dead' | 'power_lost' | 'active'
 
 export function stepStatus(s: GameState, step: NightStep): StepStatus {
   if (rolesToIdentify(s, step).length > 0) return 'identify'
-  if (step.kind === 'villageois' || step.kind === 'amoureux' || step.kind === 'charmes') return 'active'
+  if (step.kind !== 'role') return 'active'
   if (stepActors(s, step).length === 0) return 'dead'
   const role = getRole(step.roleId)
   if (role.camp === 'village' && role.actions.length > 0 && s.powers.villagePowersLost) return 'power_lost'

@@ -12,6 +12,7 @@ import {
   isWolf,
   nightVictims,
   playerById,
+  roleTexts,
   rolesToIdentify,
   stepActors,
   stepStatus,
@@ -194,13 +195,24 @@ export function StepScreen({ step }: { step: NightStep }) {
 
   const header = villagers
     ? { emoji: '🧑‍🌾', nom: 'Joueurs restants', reveil: '', coucher: '', desc: 'Saisis les prénoms des joueurs qui ne se sont pas encore réveillés : ce sont les Simples Villageois.' }
-    : {
-        emoji: (companion ?? role).emoji,
-        nom: (companion ?? role).nom,
-        reveil: (companion ?? role).phrase_reveil,
-        coucher: (companion ?? role).phrase_coucher,
-        desc: (companion ?? role).description_courte,
-      }
+    : step.kind === 'reconnaissance'
+      ? {
+          emoji: role.emoji,
+          nom: `${role.nom} · reconnaissance`,
+          reveil: role.phrase_reconnaissance ?? `${role.nom}, réveille-toi et montre-toi à moi.`,
+          coucher: role.phrase_coucher,
+          desc: 'Tour de reconnaissance : repère ce joueur. Son action a besoin de connaître les rôles de tout le monde, il jouera donc à la fin de la nuit.',
+        }
+      : companion
+        ? {
+            emoji: companion.emoji,
+            nom: companion.nom,
+            reveil: companion.phrase_reveil,
+            coucher: companion.phrase_coucher,
+            desc: companion.description_courte,
+          }
+        : { emoji: role.emoji, ...roleTexts(game.config, role), desc: role.description_courte }
+  const eyesClosed = step.kind === 'role' && role.yeuxFermes
 
   const actions =
     status === 'active'
@@ -235,7 +247,13 @@ export function StepScreen({ step }: { step: NightStep }) {
         <h1 className="mt-2 font-tale text-4xl leading-tight font-bold text-moon">{header.nom}</h1>
       </div>
 
-      {header.reveil && <Phrase label="Réveil">{header.reveil}</Phrase>}
+      {eyesClosed && (
+        <Banner tone="warning">
+          🙈 <b>Yeux fermés !</b> Personne n’ouvre les yeux : ils lèvent seulement la main pour que tu les repères, sans pouvoir
+          se reconnaître entre eux.
+        </Banner>
+      )}
+      {header.reveil && <Phrase label={eyesClosed ? 'Appel' : 'Réveil'}>{header.reveil}</Phrase>}
       <Hint>{header.desc}</Hint>
 
       {status === 'identify' && <IdentifyPanel roleIds={rolesToIdentify(game, step)} />}
@@ -256,7 +274,7 @@ export function StepScreen({ step }: { step: NightStep }) {
         <>
           {!villagers && actors.length > 0 && (
             <Card>
-              <SectionTitle>{companion ? 'Touche la tête de' : 'Se réveille(nt)'}</SectionTitle>
+              <SectionTitle>{companion ? 'Touche la tête de' : eyesClosed ? 'A (ont) levé la main' : 'Se réveille(nt)'}</SectionTitle>
               <ul className="space-y-1">
                 {actors.map((p) => (
                   <li key={p.id} className="text-lg">
@@ -267,6 +285,9 @@ export function StepScreen({ step }: { step: NightStep }) {
             </Card>
           )}
           {villagers && <Banner tone="success">✅ Tous les joueurs sont identifiés.</Banner>}
+          {step.kind === 'role' && role.compagnon?.id === 'amoureux' && game.turn > 1 && (
+            <Banner tone="warning">💘 Les anciens Amoureux sont morts : Cupidon désigne un nouveau couple.</Banner>
+          )}
           {role.meute && game.players.some((p) => p.alive && p.roleId === 'petite_fille') && (
             <Hint>👧 La Petite fille peut entrouvrir les yeux pour espionner les loups.</Hint>
           )}

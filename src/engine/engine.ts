@@ -1,5 +1,5 @@
 import { narrate } from './narration'
-import { defaultOrder, getRole, hasEffect, ROLES, VILLAGER_ID } from './roles'
+import { defaultOrder, getRole, hasConfiguredEffect, hasEffect, ROLES, VILLAGER_ID } from './roles'
 import {
   alivePlayers,
   availableActions,
@@ -37,7 +37,7 @@ type AlertInput = Alert extends infer A ? (A extends Alert ? Omit<A, 'id'> : nev
 // Création de partie
 // ---------------------------------------------------------------------------
 
-export function createGame(config: GameConfig, circleNames: string[] = [], seed = Date.now()): GameState {
+export function createGame(config: GameConfig, names: string[] = [], seed = Date.now()): GameState {
   const order = [...config.order, ...defaultOrder().filter((id) => !config.order.includes(id))]
   const s: GameState = {
     version: 1,
@@ -71,8 +71,8 @@ export function createGame(config: GameConfig, circleNames: string[] = [], seed 
     winner: null,
     log: [],
   }
-  circleNames.forEach((name, seat) => {
-    s.players.push(newPlayer(s, name.trim(), seat))
+  names.forEach((name, i) => {
+    s.players.push(newPlayer(s, name.trim(), config.nameMode === 'cercle' ? i : null))
   })
   s.night = newNight(s, 1)
   log(s, `Début de la partie : ${config.playerCount} joueurs.`)
@@ -107,18 +107,36 @@ function pushAlert(s: GameState, out: Alert[], alert: AlertInput) {
 // Construction des étapes de nuit
 // ---------------------------------------------------------------------------
 
+/** Variante « Nouveaux Amoureux » : le couple est mort et Cupidon est en vie. */
+function cupidRenews(s: GameState, roleId: string): boolean {
+  return (
+    hasConfiguredEffect(s.config, roleId, 'renouvelle_amoureux') &&
+    !!s.lovers &&
+    s.lovers.every((id) => !playerById(s, id)?.alive) &&
+    s.players.some((p) => p.alive && p.roleId === roleId)
+  )
+}
+
 export function buildNightSteps(s: GameState, n: number): NightStep[] {
   const inGame = new Set(rolesInGame(s.config).map((r) => r.id))
   const hasPack = ROLES.some((r) => r.estLoup && inGame.has(r.id))
   const steps: NightStep[] = []
+  const deferred: NightStep[] = []
   for (const roleId of s.config.order) {
     const role = getRole(roleId)
     if (!(role.meute ? hasPack : inGame.has(roleId))) continue
-    if (role.frequence === 'premiere_nuit' && n !== 1) continue
+    const renewsLovers = n > 1 && cupidRenews(s, roleId)
+    if (role.frequence === 'premiere_nuit' && n !== 1 && !renewsLovers) continue
     if (role.frequence === 'une_nuit_sur_deux' && n % 2 !== 0) continue
     if (role.frequence === 'jamais_la_nuit' && !(role.identificationNuit1 && n === 1)) continue
+    if (n === 1 && role.apresReconnaissance) {
+      // Tour de reconnaissance : il se montre maintenant et agit en fin de nuit.
+      steps.push({ key: `${roleId}:reconnaissance`, kind: 'reconnaissance', roleId })
+      deferred.push({ key: roleId, kind: 'role', roleId })
+      continue
+    }
     steps.push({ key: roleId, kind: 'role', roleId })
-    if (role.compagnon?.id === 'amoureux' && n === 1) {
+    if (role.compagnon?.id === 'amoureux' && (n === 1 || renewsLovers)) {
       steps.push({ key: `${roleId}:amoureux`, kind: 'amoureux', roleId })
     }
     if (role.compagnon?.id === 'charmes') {
@@ -126,7 +144,7 @@ export function buildNightSteps(s: GameState, n: number): NightStep[] {
       if (piperAlive) steps.push({ key: `${roleId}:charmes`, kind: 'charmes', roleId })
     }
   }
-  if (n === 1) steps.push({ key: 'villageois', kind: 'villageois', roleId: VILLAGER_ID })
+  if (n === 1) steps.push({ key: 'villageois', kind: 'villageois', roleId: VILLAGER_ID }, ...deferred)
   return steps
 }
 
@@ -241,6 +259,20 @@ export function killPlayer(s: GameState, id: string, cause: DeathCause, out: Ale
   if (s.lovers?.includes(id)) {
     const otherId = s.lovers[0] === id ? s.lovers[1] : s.lovers[0]
     if (playerById(s, otherId)?.alive) killPlayer(s, otherId, 'chagrin', out, true)
+    else {
+      // Second Amoureux à mourir : le couple est éteint.
+      const cupid = ROLES.find((r) => r.compagnon?.id === 'amoureux' && cupidRenews(s, r.id))
+      if (cupid) {
+        log(s, 'Les deux Amoureux sont morts : Cupidon désignera un nouveau couple la nuit prochaine.')
+        pushAlert(s, out, {
+          kind: 'info',
+          level: 'info',
+          emoji: '💘',
+          title: 'Les deux Amoureux sont morts.',
+          text: 'Cupidon est toujours en vie : la nuit prochaine, il désignera un nouveau couple. Ne dis rien au village.',
+        })
+      }
+    }
   }
 
   if (hasEffect(p.roleId, 'tir_a_la_mort') && !s.powers.villagePowersLost && alivePlayers(s).length > 0) {
@@ -265,8 +297,9 @@ function applyStep(s: GameState, step: NightStep, selections: Record<string, Sel
     switch (action.effet) {
       case 'amour':
         if (ids.length === 2) {
+          const renewal = s.lovers !== null
           s.lovers = [ids[0], ids[1]]
-          log(s, `Cupidon unit ${displayName(s, ids[0])} et ${displayName(s, ids[1])}.`)
+          log(s, `Cupidon unit ${renewal ? 'un nouveau couple : ' : ''}${displayName(s, ids[0])} et ${displayName(s, ids[1])}.`)
         }
         break
       case 'modele':

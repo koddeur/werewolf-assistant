@@ -179,6 +179,8 @@ export function OrderEditor({ order, onChange, only }: { order: RoleId[]; onChan
   )
 }
 
+const NAME_MODE_LABELS = { progressif: 'progressifs', liste: 'saisis avant la partie', cercle: 'en cercle' }
+
 const FREQ_LABELS = {
   premiere_nuit: 'Première nuit uniquement',
   chaque_nuit: 'Chaque nuit',
@@ -200,7 +202,7 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
         <SectionTitle>Partie</SectionTitle>
         <Card>
           <p className="text-night-400">
-            {game.config.playerCount} joueurs · prénoms {game.config.nameMode === 'cercle' ? 'en cercle' : 'progressifs'} ·{' '}
+            {game.config.playerCount} joueurs · prénoms {NAME_MODE_LABELS[game.config.nameMode]} ·{' '}
             Maire {game.config.mayorEnabled ? 'activé' : 'désactivé'}
           </p>
           <p className="mt-2 text-night-400">

@@ -1,4 +1,4 @@
-import type { RoleDef, RoleId } from './types'
+import type { GameConfig, RoleDef, RoleId } from './types'
 
 /**
  * Configuration de tous les rôles. Ajouter un rôle = ajouter une entrée ici.
@@ -48,6 +48,20 @@ export const ROLES: RoleDef[] = [
     effets: [],
     description_courte: 'Unit deux joueurs (il peut se choisir). Si l’un meurt, l’autre meurt de chagrin.',
     quantites: { max: 1 },
+    variantes: [
+      {
+        id: 'classique',
+        nom: 'Classique',
+        description: 'Cupidon ne choisit les Amoureux qu’une seule fois, la première nuit.',
+      },
+      {
+        id: 'renouvelable',
+        nom: 'Nouveaux Amoureux',
+        description:
+          'Quand les deux Amoureux sont morts, Cupidon (s’il est en vie) désigne un nouveau couple la nuit suivante.',
+        effets: ['renouvelle_amoureux'],
+      },
+    ],
     compagnon: {
       id: 'amoureux',
       nom: 'Amoureux',
@@ -157,17 +171,23 @@ export const ROLES: RoleDef[] = [
   {
     id: 'chasseur',
     nom: 'Chasseur',
+    nom_pluriel: 'Chasseurs',
     emoji: '🏹',
     camp: 'village',
     frequence: 'jamais_la_nuit',
     identificationNuit1: true,
-    ordre: 60,
-    phrase_reveil: 'Chasseur, réveille-toi et montre-toi discrètement à moi.',
-    phrase_coucher: 'Chasseur, rendors-toi.',
+    yeuxFermes: true,
+    // Appelé en tout premier : tout le monde sait que ce réveil-là se fait les yeux fermés.
+    ordre: 1,
+    phrase_reveil: 'Chasseur, sans ouvrir les yeux, lève la main pour que je te reconnaisse.',
+    phrase_reveil_pluriel: 'Chasseurs, sans ouvrir les yeux, levez la main pour que je vous reconnaisse.',
+    phrase_coucher: 'Chasseur, baisse la main.',
+    phrase_coucher_pluriel: 'Chasseurs, baissez la main.',
     actions: [],
     effets: ['tir_a_la_mort'],
-    description_courte: 'Quand il meurt, il tire immédiatement sur un joueur de son choix, qui meurt aussi.',
-    quantites: { max: 1 },
+    description_courte:
+      'Quand il meurt, il tire immédiatement sur un joueur de son choix, qui meurt aussi. Il garde les yeux fermés quand on l’appelle : avec 2 Chasseurs, ils ne doivent pas pouvoir se reconnaître.',
+    quantites: { max: 2 },
   },
   {
     id: 'ancien',
@@ -270,6 +290,8 @@ export const ROLES: RoleDef[] = [
     camp: 'village',
     frequence: 'chaque_nuit',
     ordre: 100,
+    apresReconnaissance: true,
+    phrase_reconnaissance: 'Renard, réveille-toi et montre-toi à moi. Je te rappellerai plus tard dans la nuit.',
     phrase_reveil: 'Renard, réveille-toi. Désigne un joueur : je te dirai si lui ou l’un de ses voisins est un loup.',
     phrase_coucher: 'Renard, rendors-toi.',
     actions: [{ id: 'cible', type: 'joueurs', libelle: 'Joueur flairé', effet: 'flair', nombre: 1, contraintes: ['vivant'] }],
@@ -310,6 +332,8 @@ export const ROLES: RoleDef[] = [
     camp: 'village',
     frequence: 'chaque_nuit',
     ordre: 120,
+    apresReconnaissance: true,
+    phrase_reconnaissance: 'Voyante, réveille-toi et montre-toi à moi. Je te rappellerai plus tard dans la nuit.',
     phrase_reveil: 'Voyante, réveille-toi. Désigne le joueur dont tu veux connaître l’identité.',
     phrase_coucher: 'Voyante, rendors-toi.',
     actions: [
@@ -535,6 +559,18 @@ export function getRole(id: RoleId): RoleDef {
 
 export function findRole(id: RoleId | null | undefined): RoleDef | undefined {
   return id ? BY_ID.get(id) : undefined
+}
+
+/** Variante active d'un rôle (la première par défaut). */
+export function activeVariant(config: GameConfig, roleId: RoleId) {
+  const variantes = getRole(roleId).variantes
+  if (!variantes?.length) return undefined
+  return variantes.find((v) => v.id === config.variantes?.[roleId]) ?? variantes[0]
+}
+
+/** Effet du rôle, en tenant compte de la variante choisie pour la partie. */
+export function hasConfiguredEffect(config: GameConfig, roleId: RoleId, effet: RoleDef['effets'][number]): boolean {
+  return hasEffect(roleId, effet) || (activeVariant(config, roleId)?.effets?.includes(effet) ?? false)
 }
 
 export function hasEffect(roleId: RoleId | null | undefined, effet: RoleDef['effets'][number]): boolean {

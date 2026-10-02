@@ -9,13 +9,14 @@ import { Banner, Button, SectionTitle } from './ui'
 
 /**
  * Saisie des prénoms des joueurs qui se réveillent.
- * Progressif : champs texte avec autocomplétion. Cercle : choix parmi les joueurs placés.
+ * Progressif : champs texte avec autocomplétion. Liste ou cercle : choix parmi les joueurs déjà saisis.
  */
 export function IdentifyPanel({ roleIds }: { roleIds: RoleId[] }) {
   const { game, dispatch } = useCurrentGame()
   const remaining = remainingSlots(game)
   const unassigned = unassignedPlayers(game)
-  const circle = game.config.nameMode === 'cercle'
+  // Prénoms déjà saisis avant la partie : on choisit parmi eux au lieu de taper.
+  const circle = game.config.nameMode !== 'progressif'
 
   const [names, setNames] = useState<Record<RoleId, string[]>>(() => {
     const init: Record<RoleId, string[]> = {}
@@ -73,7 +74,7 @@ export function IdentifyPanel({ roleIds }: { roleIds: RoleId[] }) {
         return (
           <div key={roleId}>
             <SectionTitle>
-              {role.emoji} {n > 1 ? `Qui sont les ${n} ${role.nom} ?` : `Qui est ${role.nom} ?`}
+              {role.emoji} {n > 1 ? `Qui sont les ${n} ${role.nom_pluriel ?? role.nom} ?` : `Qui est ${role.nom} ?`}
             </SectionTitle>
             {circle ? (
               <PlayerPicker
