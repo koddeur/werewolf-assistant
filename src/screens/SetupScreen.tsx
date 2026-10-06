@@ -160,7 +160,7 @@ function PlayerNames({ draft, update, seated }: { draft: Draft; update: (d: Part
   )
 }
 
-export function SetupScreen() {
+export function SetupScreen({ onBack }: { onBack: () => void }) {
   const { startGame } = useGame()
   const [draft, setDraft] = useState<Draft>(loadDraft)
   const update = (d: Partial<Draft>) => setDraft((prev) => ({ ...prev, ...d }))
@@ -208,7 +208,10 @@ export function SetupScreen() {
   if (draft.page === 'roles') {
     return (
       <div className="space-y-5 animate-rise">
-        <div className="pt-4 text-center">
+        <Button variant="ghost" onClick={onBack}>
+          ← Accueil
+        </Button>
+        <div className="text-center">
           <div className="text-6xl" aria-hidden>
             🐺
           </div>

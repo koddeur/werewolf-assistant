@@ -1,0 +1,1 @@
+- Écran d'accueil : l'état « accueil / config » vit dans `NoGame`, monté uniquement sans partie → quitter une partie le remonte et ramène à l'accueil, sans reset manuel.

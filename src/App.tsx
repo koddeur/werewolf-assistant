@@ -3,6 +3,7 @@ import { currentStep } from './engine/engine'
 import type { GameState } from './engine/types'
 import { useWakeLock } from './hooks/useWakeLock'
 import { AlertScreen } from './screens/AlertScreen'
+import { HomeScreen } from './screens/HomeScreen'
 import { DayScreen, EndScreen, MorningScreen, NightIntro } from './screens/PhaseScreens'
 import { SetupScreen } from './screens/SetupScreen'
 import { JournalSheet, PlayersSheet, SettingsSheet } from './screens/Sheets'
@@ -88,14 +89,17 @@ function GameShell() {
   )
 }
 
+/** Monté seulement sans partie en cours : quitter une partie ramène donc à l'accueil. */
+function NoGame() {
+  const [setup, setSetup] = useState(false)
+  return (
+    <main className="mx-auto max-w-xl px-4 pt-[max(1rem,env(safe-area-inset-top))]">
+      {setup ? <SetupScreen onBack={() => setSetup(false)} /> : <HomeScreen onStart={() => setSetup(true)} />}
+    </main>
+  )
+}
+
 export default function App() {
   const { game } = useGame()
-  if (!game) {
-    return (
-      <main className="mx-auto max-w-xl px-4 pt-[max(1rem,env(safe-area-inset-top))]">
-        <SetupScreen />
-      </main>
-    )
-  }
-  return <GameShell />
+  return game ? <GameShell /> : <NoGame />
 }
